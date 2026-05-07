@@ -193,10 +193,10 @@ function amountToGrosze(amountPLN) {
   return zl * 100 + gr;
 }
 
-function buildKIR(recipient, nrb, amountPLN, nip, title, ident) {
+function buildKIR(recipient, nrb, amountPLN, title, nip, ident) {
   var grosze = amountToGrosze(amountPLN);
   var amtStr = String(grosze).padStart(6, '0');
-  return '|PL|' + nrb + '|' + amtStr + '|' + recipient + '|' + (nip || '') + '|' + (title || '') + '|' + (ident || '') + '|';
+  return '|PL|' + nrb + '|' + amtStr + '|' + recipient + '|' + (title || '') + '|' + (nip || '') + '|' + (ident || '') + '|';
 }
 
 function showError(msg) {
@@ -226,7 +226,7 @@ function generate() {
   if (amountParsed > 9999999) { showError('Kwota nie może przekroczyć 99 999,99 PLN.'); return; }
   if (nipVal && !/^\d{10}$/.test(nipVal)) { showError('NIP musi zawierać dokładnie 10 cyfr.'); return; }
 
-  var kirData = buildKIR(recipientVal, nrb, amountVal, nipVal, titleVal, identVal);
+  var kirData = buildKIR(recipientVal, nrb, amountVal, titleVal, nipVal, identVal);
 
   var container = document.getElementById('qrcode');
   container.innerHTML = '';
