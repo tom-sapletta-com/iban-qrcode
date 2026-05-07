@@ -58,7 +58,7 @@
 <div style="max-width:640px; margin:0 auto; padding:1rem 0;">
 <div style="display:grid; gap:1rem;">
 
-<div style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1.25rem 1.5rem;">
+<form id="transferForm" style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1.25rem 1.5rem;">
   <p style="font-size:12px; color:var(--color-text-tertiary); margin:0 0 1rem; font-weight:500; letter-spacing:.05em; text-transform:uppercase;">Dane przelewu</p>
 
   <div style="margin-bottom:12px;">
@@ -93,10 +93,10 @@
     <input id="ident" type="text" placeholder="np. INV-2025-001" style="width:100%; box-sizing:border-box;" />
   </div>
 
-  <button onclick="generate()" style="width:100%; padding:10px; font-size:14px; font-weight:500; cursor:pointer;">
+  <button type="submit" style="width:100%; padding:10px; font-size:14px; font-weight:500; cursor:pointer;">
     Generuj kod QR
   </button>
-</div>
+</form>
 
 <div id="errorBox" style="display:none; background:var(--color-background-danger); border:0.5px solid var(--color-border-danger); border-radius:var(--border-radius-md); padding:10px 14px;">
   <p id="errorMsg" style="font-size:13px; color:var(--color-text-danger); margin:0;"></p>
@@ -159,7 +159,7 @@
 </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="./qrcode.min.js"></script>
 <script>
 function formatIBANInput(el) {
   var raw = el.value.replace(/\s/g,'').toUpperCase();
@@ -184,8 +184,17 @@ function getNRB(raw) {
   return clean;
 }
 
+function amountToGrosze(amountPLN) {
+  var normalized = String(amountPLN).trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return NaN;
+  var parts = normalized.split('.');
+  var zl = parseInt(parts[0], 10);
+  var gr = parts[1] ? parseInt((parts[1] + '0').slice(0, 2), 10) : 0;
+  return zl * 100 + gr;
+}
+
 function buildKIR(recipient, nrb, amountPLN, nip, title, ident) {
-  var grosze = Math.round(parseFloat(amountPLN) * 100);
+  var grosze = amountToGrosze(amountPLN);
   var amtStr = String(grosze).padStart(6, '0');
   return '|PL|' + nrb + '|' + amtStr + '|' + recipient + '|' + (nip || '') + '|' + (title || '') + '|' + (ident || '') + '|';
 }
@@ -207,13 +216,14 @@ function generate() {
   var nipVal = document.getElementById('nip').value.trim().replace(/[\s-]/g,'');
   var titleVal = document.getElementById('title').value.trim();
   var identVal = document.getElementById('ident').value.trim();
+  var amountParsed = amountToGrosze(amountVal);
 
   if (!recipientVal) { showError('Podaj nazwę odbiorcy.'); return; }
   if (!ibanRaw) { showError('Podaj numer rachunku bankowego.'); return; }
   var nrb = getNRB(ibanRaw);
   if (!/^\d{26}$/.test(nrb)) { showError('Numer rachunku musi zawierać 26 cyfr (NRB) lub PL + 26 cyfr (IBAN).'); return; }
-  if (!amountVal || isNaN(parseFloat(amountVal)) || parseFloat(amountVal) <= 0) { showError('Podaj poprawną kwotę przelewu.'); return; }
-  if (parseFloat(amountVal) > 99999.99) { showError('Kwota nie może przekroczyć 99 999,99 PLN.'); return; }
+  if (!amountVal || isNaN(amountParsed) || amountParsed <= 0) { showError('Podaj poprawną kwotę przelewu.'); return; }
+  if (amountParsed > 9999999) { showError('Kwota nie może przekroczyć 99 999,99 PLN.'); return; }
   if (nipVal && !/^\d{10}$/.test(nipVal)) { showError('NIP musi zawierać dokładnie 10 cyfr.'); return; }
 
   var kirData = buildKIR(recipientVal, nrb, amountVal, nipVal, titleVal, identVal);
@@ -232,7 +242,7 @@ function generate() {
   var ibanFormatted = 'PL' + nrb.match(/.{1,4}/g).join(' ');
   document.getElementById('s-recipient').textContent = recipientVal;
   document.getElementById('s-iban').textContent = ibanFormatted;
-  document.getElementById('s-amount').textContent = parseFloat(amountVal).toFixed(2).replace('.',',') + ' PLN';
+  document.getElementById('s-amount').textContent = (amountParsed / 100).toFixed(2).replace('.',',') + ' PLN';
   document.getElementById('s-title').textContent = titleVal || '(brak tytułu)';
 
   var nipRow = document.getElementById('s-nip-row');
@@ -259,8 +269,9 @@ function downloadQR() {
   a.click();
 }
 
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') generate();
+document.getElementById('transferForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  generate();
 });
 </script>
 </body>
