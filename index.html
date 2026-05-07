@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Generator kodu QR do przelewu (KIR)</title>
+  <style>
+    :root {
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f7f7f8;
+      --color-background-danger: #fff3f2;
+      --color-background-info: #eef6ff;
+      --color-border-tertiary: #d9dde3;
+      --color-border-danger: #f2b8b5;
+      --color-text-primary: #121417;
+      --color-text-secondary: #4e5968;
+      --color-text-tertiary: #7b8594;
+      --color-text-danger: #b42318;
+      --color-text-success: #027a48;
+      --color-text-info: #175cd3;
+      --border-radius-lg: 12px;
+      --border-radius-md: 10px;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+    }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f3f5f8;
+      color: var(--color-text-primary);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    input, button {
+      font: inherit;
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: 8px;
+      padding: 9px 10px;
+    }
+    button {
+      background: #111827;
+      color: #fff;
+      border: 0;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+  </style>
+</head>
+<body>
+<h2 class="sr-only">Generator kodu QR do przelewu bankowego w formacie KIR</h2>
+
+<div style="max-width:640px; margin:0 auto; padding:1rem 0;">
+<div style="display:grid; gap:1rem;">
+
+<form id="transferForm" style="background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1.25rem 1.5rem;">
+  <p style="font-size:12px; color:var(--color-text-tertiary); margin:0 0 1rem; font-weight:500; letter-spacing:.05em; text-transform:uppercase;">Dane przelewu</p>
+
+  <div style="margin-bottom:12px;">
+    <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="recipient">Nazwa odbiorcy</label>
+    <input id="recipient" type="text" placeholder="np. Jan Kowalski" style="width:100%; box-sizing:border-box;" />
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="iban">Numer rachunku bankowego (NRB / IBAN)</label>
+    <input id="iban" type="text" placeholder="PL61 1090 1014 0000 0712 1981 2874" style="width:100%; box-sizing:border-box; font-family:var(--font-mono);" maxlength="34" oninput="formatIBANInput(this)" />
+    <p id="ibanHint" style="font-size:11px; margin:4px 0 0; min-height:16px;"></p>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+    <div>
+      <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="amount">Kwota (PLN)</label>
+      <input id="amount" type="number" placeholder="0.00" min="0.01" max="99999.99" step="0.01" style="width:100%; box-sizing:border-box;" />
+    </div>
+    <div>
+      <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="nip">NIP (opcjonalnie)</label>
+      <input id="nip" type="text" placeholder="1234567890" maxlength="10" style="width:100%; box-sizing:border-box; font-family:var(--font-mono);" />
+    </div>
+  </div>
+
+  <div style="margin-bottom:12px;">
+    <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="title">Tytułem</label>
+    <input id="title" type="text" placeholder="np. Faktura VAT 2025/05/001" style="width:100%; box-sizing:border-box;" />
+  </div>
+
+  <div style="margin-bottom:16px;">
+    <label style="display:block; font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;" for="ident">Identyfikator płatności (opcjonalnie)</label>
+    <input id="ident" type="text" placeholder="np. INV-2025-001" style="width:100%; box-sizing:border-box;" />
+  </div>
+
+  <button type="submit" style="width:100%; padding:10px; font-size:14px; font-weight:500; cursor:pointer;">
+    Generuj kod QR
+  </button>
+</form>
+
+<div id="errorBox" style="display:none; background:var(--color-background-danger); border:0.5px solid var(--color-border-danger); border-radius:var(--border-radius-md); padding:10px 14px;">
+  <p id="errorMsg" style="font-size:13px; color:var(--color-text-danger); margin:0;"></p>
+</div>
+
+<div id="resultSection" style="display:none; background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1.25rem 1.5rem;">
+
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem;">
+    <p style="font-size:12px; color:var(--color-text-tertiary); margin:0; font-weight:500; letter-spacing:.05em; text-transform:uppercase;">Kod QR przelewu (KIR)</p>
+    <button onclick="downloadQR()" style="font-size:12px; padding:6px 12px;">
+      Pobierz PNG
+    </button>
+  </div>
+
+  <div style="display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap;">
+    <div style="background:#ffffff; border-radius:var(--border-radius-md); padding:12px; flex-shrink:0; border:0.5px solid var(--color-border-tertiary);">
+      <div id="qrcode"></div>
+    </div>
+
+    <div style="flex:1; min-width:180px; display:flex; flex-direction:column; gap:10px;">
+
+      <div>
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em;">Odbiorca</p>
+        <p id="s-recipient" style="font-size:14px; font-weight:500; margin:0; color:var(--color-text-primary);"></p>
+      </div>
+
+      <div>
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em;">Konto</p>
+        <p id="s-iban" style="font-size:12px; font-family:var(--font-mono); color:var(--color-text-secondary); margin:0; word-break:break-all;"></p>
+      </div>
+
+      <div>
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em;">Kwota</p>
+        <p id="s-amount" style="font-size:22px; font-weight:500; margin:0; color:var(--color-text-primary);"></p>
+      </div>
+
+      <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:10px 12px; border:0.5px solid var(--color-border-tertiary);">
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 4px; text-transform:uppercase; letter-spacing:.04em;">Tytuł przelewu</p>
+        <p id="s-title" style="font-size:13px; color:var(--color-text-primary); margin:0; font-weight:500; word-break:break-word;"></p>
+      </div>
+
+      <div id="s-nip-row" style="display:none;">
+        <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 2px; text-transform:uppercase; letter-spacing:.04em;">NIP</p>
+        <p id="s-nip" style="font-size:13px; font-family:var(--font-mono); color:var(--color-text-secondary); margin:0;"></p>
+      </div>
+
+      <div style="padding:10px 12px; background:var(--color-background-info); border-radius:var(--border-radius-md);">
+        <p style="font-size:12px; color:var(--color-text-info); margin:0; line-height:1.5;">Zeskanuj w aplikacji bankowej (PKO BP, mBank, ING, Santander i inne).</p>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="margin-top:1rem; border-top:0.5px solid var(--color-border-tertiary); padding-top:1rem;">
+    <p style="font-size:11px; color:var(--color-text-tertiary); margin:0 0 6px; text-transform:uppercase; letter-spacing:.04em;">Zakodowane dane (KIR)</p>
+    <pre id="rawData" style="font-size:11px; font-family:var(--font-mono); color:var(--color-text-secondary); background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:10px 12px; margin:0; white-space:pre-wrap; word-break:break-all; line-height:1.6;"></pre>
+  </div>
+</div>
+
+</div>
+</div>
+
+<script src="./qrcode.min.js"></script>
+<script>
+function formatIBANInput(el) {
+  var raw = el.value.replace(/\s/g,'').toUpperCase();
+  var hint = document.getElementById('ibanHint');
+  if (raw.startsWith('PL') && raw.length === 28) {
+    hint.textContent = '✓ Polski IBAN (PL + 26 cyfr)';
+    hint.style.color = 'var(--color-text-success)';
+  } else if (!raw.startsWith('PL') && raw.length === 26 && /^\d+$/.test(raw)) {
+    hint.textContent = '✓ NRB (26 cyfr) — PL zostanie dodane automatycznie';
+    hint.style.color = 'var(--color-text-success)';
+  } else if (raw.length > 0) {
+    hint.textContent = 'Format: PL + 26 cyfr lub samo 26 cyfr NRB';
+    hint.style.color = 'var(--color-text-tertiary)';
+  } else {
+    hint.textContent = '';
+  }
+}
+
+function getNRB(raw) {
+  var clean = raw.replace(/\s/g,'').toUpperCase();
+  if (clean.startsWith('PL')) clean = clean.slice(2);
+  return clean;
+}
+
+function amountToGrosze(amountPLN) {
+  var normalized = String(amountPLN).trim().replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalized)) return NaN;
+  var parts = normalized.split('.');
+  var zl = parseInt(parts[0], 10);
+  var gr = parts[1] ? parseInt((parts[1] + '0').slice(0, 2), 10) : 0;
+  return zl * 100 + gr;
+}
+
+function buildKIR(recipient, nrb, amountPLN, nip, title, ident) {
+  var grosze = amountToGrosze(amountPLN);
+  var amtStr = String(grosze).padStart(6, '0');
+  return '|PL|' + nrb + '|' + amtStr + '|' + recipient + '|' + (nip || '') + '|' + (title || '') + '|' + (ident || '') + '|';
+}
+
+function showError(msg) {
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('errorBox').style.display = 'block';
+  document.getElementById('resultSection').style.display = 'none';
+}
+function clearError() {
+  document.getElementById('errorBox').style.display = 'none';
+}
+
+function generate() {
+  clearError();
+  var recipientVal = document.getElementById('recipient').value.trim();
+  var ibanRaw = document.getElementById('iban').value.trim();
+  var amountVal = document.getElementById('amount').value.trim();
+  var nipVal = document.getElementById('nip').value.trim().replace(/[\s-]/g,'');
+  var titleVal = document.getElementById('title').value.trim();
+  var identVal = document.getElementById('ident').value.trim();
+  var amountParsed = amountToGrosze(amountVal);
+
+  if (!recipientVal) { showError('Podaj nazwę odbiorcy.'); return; }
+  if (!ibanRaw) { showError('Podaj numer rachunku bankowego.'); return; }
+  var nrb = getNRB(ibanRaw);
+  if (!/^\d{26}$/.test(nrb)) { showError('Numer rachunku musi zawierać 26 cyfr (NRB) lub PL + 26 cyfr (IBAN).'); return; }
+  if (!amountVal || isNaN(amountParsed) || amountParsed <= 0) { showError('Podaj poprawną kwotę przelewu.'); return; }
+  if (amountParsed > 9999999) { showError('Kwota nie może przekroczyć 99 999,99 PLN.'); return; }
+  if (nipVal && !/^\d{10}$/.test(nipVal)) { showError('NIP musi zawierać dokładnie 10 cyfr.'); return; }
+
+  var kirData = buildKIR(recipientVal, nrb, amountVal, nipVal, titleVal, identVal);
+
+  var container = document.getElementById('qrcode');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: kirData,
+    width: 190,
+    height: 190,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+
+  var ibanFormatted = 'PL' + nrb.match(/.{1,4}/g).join(' ');
+  document.getElementById('s-recipient').textContent = recipientVal;
+  document.getElementById('s-iban').textContent = ibanFormatted;
+  document.getElementById('s-amount').textContent = (amountParsed / 100).toFixed(2).replace('.',',') + ' PLN';
+  document.getElementById('s-title').textContent = titleVal || '(brak tytułu)';
+
+  var nipRow = document.getElementById('s-nip-row');
+  if (nipVal) {
+    document.getElementById('s-nip').textContent = nipVal;
+    nipRow.style.display = 'block';
+  } else {
+    nipRow.style.display = 'none';
+  }
+
+  document.getElementById('rawData').textContent = kirData;
+  document.getElementById('resultSection').style.display = 'block';
+  document.getElementById('resultSection').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function downloadQR() {
+  var canvas = document.querySelector('#qrcode canvas');
+  var img = document.querySelector('#qrcode img');
+  var src = canvas ? canvas.toDataURL('image/png') : (img ? img.src : null);
+  if (!src) return;
+  var a = document.createElement('a');
+  a.href = src;
+  a.download = 'przelew-qr.png';
+  a.click();
+}
+
+document.getElementById('transferForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  generate();
+});
+</script>
+</body>
+</html>
